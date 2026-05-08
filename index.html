@@ -979,6 +979,379 @@ function delUser(i) {
   renderAdminUsers();
 }
 
+
+// ═══ ТӨСӨЛ / ТАВИЛГА / ASSEMBLY СИСТЕМ ═══
+const SUPA_URL2 = 'https://oincisgkmypivfhswozx.supabase.co';
+const SUPA_KEY2 = 'sb_publishable_ORk1vW6mhriHRDkzJYAVHw_GjFnz7tF';
+const fmt2 = n => Math.round(n).toLocaleString('mn-MN');
+const g2 = id => parseFloat(document.getElementById(id)?.value) || 0;
+const set2 = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
+
+async function supa(method, path, body=null) {
+  const opts = {
+    method,
+    headers: { 'apikey': SUPA_KEY2, 'Authorization': 'Bearer ' + SUPA_KEY2, 'Content-Type': 'application/json', 'Prefer': method==='POST'?'return=representation':'' }
+  };
+  if(body) opts.body = JSON.stringify(body);
+  const res = await fetch(SUPA_URL2 + '/rest/v1/' + path, opts);
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
+
+let projects = [];
+let currentProjectId = null;
+let furnitureList = [];
+let editingFurnitureId = null;
+let assemblies = [];
+
+async function loadProjects() {
+  const data = await supa('GET', 'projects?select=*&order=created_at.desc');
+  if(!Array.isArray(data)) return;
+  projects = data;
+  const sel = document.getElementById('projSelect');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— Төсөл сонгох —</option>' +
+    projects.map(p => `<option value="${p.id}">${p.name}${p.client?' — '+p.client:''}</option>`).join('');
+  if(currentProjectId) {
+    sel.value = currentProjectId;
+    onProjChange();
+  }
+}
+
+async function onProjChange() {
+  const sel = document.getElementById('projSelect');
+  if(!sel) return;
+  currentProjectId = parseInt(sel.value) || null;
+  const projInfo = document.getElementById('projInfo');
+  const furSec = document.getElementById('furnitureSection');
+  const furEd = document.getElementById('furnitureEditor');
+  if(!currentProjectId) {
+    if(projInfo) projInfo.style.display = 'none';
+    if(furSec) furSec.style.display = 'none';
+    if(furEd) furEd.style.display = 'none';
+    return;
+  }
+  const proj = projects.find(p => p.id === currentProjectId);
+  if(projInfo) projInfo.style.display = 'block';
+  const clientEl = document.getElementById('projClient');
+  if(clientEl) clientEl.value = proj?.client || '';
+  if(furSec) furSec.style.display = 'block';
+  await loadFurniture();
+}
+
+async function saveProjectClient() {
+  if(!currentProjectId) return;
+  const client = document.getElementById('projClient')?.value || '';
+  await supa('PATCH', `projects?id=eq.${currentProjectId}`, { client });
+  const proj = projects.find(p => p.id === currentProjectId);
+  if(proj) proj.client = client;
+  const sel = document.getElementById('projSelect');
+  const opt = sel?.querySelector(`option[value="${currentProjectId}"]`);
+  if(opt && proj) opt.textContent = proj.name + (proj.client?' — '+proj.client:'');
+}
+
+async function newProject() {
+  const name = prompt('Төслийн нэр:');
+  if(!name) return;
+  const data = await supa('POST', 'projects', { name, client: '' });
+  const newProj = Array.isArray(data) ? data[0] : data;
+  if(newProj?.id) {
+    projects.unshift(newProj);
+    currentProjectId = newProj.id;
+    await loadProjects();
+  }
+}
+
+async function loadFurniture() {
+  if(!currentProjectId) return;
+  const data = await supa('GET', `furniture?project_id=eq.${currentProjectId}&select=*&order=created_at.asc`);
+  furnitureList = Array.isArray(data) ? data : [];
+  renderFurnitureList();
+}
+
+function renderFurnitureList() {
+  const tbody = document.getElementById('furnitureRows');
+  if(!tbody) return;
+  const totals = document.getElementById('furnitureTotals');
+  if(!furnitureList.length) {
+    tbody.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2)"><i class="ti ti-armchair" style="font-size:24px;display:block;margin:0 auto 8px"></i>Тавилга байхгүй. Дээрх товчоор нэмнэ үү.</div>';
+    if(totals) totals.style.display = 'none';
+    return;
+  }
+  let vatTotal = 0;
+  tbody.innerHTML = furnitureList.map((f, i) => {
+    const vat = parseFloat(f.vat_price) || 0;
+    const qty = parseInt(f.qty) || 1;
+    const total = vat * qty;
+    vatTotal += total;
+    return `<div class="board-row" style="display:grid;grid-template-columns:30px 1fr 90px 80px 80px 100px 100px 60px;align-items:center">
+      <div class="bc" style="color:var(--text2)">${i+1}</div>
+      <div class="bc" style="font-weight:500">${f.name}</div>
+      <div class="bc" style="font-size:11px;color:var(--text2)">${f.size||'—'}</div>
+      <div class="bc" style="text-align:center">${qty}ш</div>
+      <div class="bc" style="text-align:right">${fmt2(vat)} ₮</div>
+      <div class="bc" style="text-align:right">${fmt2(vat*qty)} ₮</div>
+      <div class="bc" style="text-align:right;font-weight:600;color:#7c4dff">${fmt2(total)} ₮</div>
+      <div class="bc" style="display:flex;gap:4px">
+        <button class="icon-btn" onclick="editFurniture(${f.id})"><i class="ti ti-edit"></i></button>
+        <button class="icon-btn del" onclick="deleteFurniture(${f.id})"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+  if(totals) {
+    totals.style.display = 'grid';
+    set2('ft-vat', fmt2(vatTotal) + ' ₮');
+  }
+}
+
+function newFurniture() {
+  editingFurnitureId = null;
+  const ed = document.getElementById('furnitureEditor');
+  if(!ed) return;
+  document.getElementById('editorTitle').textContent = 'Шинэ тавилга нэмэх';
+  ['fName','fSize','fNotes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('fQty').value = '1';
+  document.getElementById('eUnz').value = '10';
+  document.getElementById('eBjm').value = '3';
+  document.getElementById('eExtra').value = '0';
+  document.getElementById('eAjil').value = '40';
+  document.getElementById('eAshig').value = '30';
+  document.getElementById('eNem').value = '0';
+  assemblies = [{ id: Date.now(), name: 'Assembly 1', rows: [] }];
+  ed.style.display = 'block';
+  document.getElementById('aiBox').style.display = 'none';
+  renderAssemblies();
+  calcEditor();
+  ed.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function editFurniture(fid) {
+  const f = furnitureList.find(x => x.id === fid);
+  if(!f) return;
+  editingFurnitureId = fid;
+  document.getElementById('editorTitle').textContent = f.name + ' — засах';
+  document.getElementById('fName').value = f.name;
+  document.getElementById('fSize').value = f.size || '';
+  document.getElementById('fNotes').value = f.notes || '';
+  document.getElementById('fQty').value = f.qty || 1;
+  document.getElementById('eUnz').value = f.rate_unz || 10;
+  document.getElementById('eBjm').value = f.rate_bjm || 3;
+  document.getElementById('eExtra').value = f.extra_cost || 0;
+  document.getElementById('eAjil').value = f.rate_ajil || 40;
+  document.getElementById('eAshig').value = f.rate_ashig || 30;
+  document.getElementById('eNem').value = f.nem_cost || 0;
+  const asmData = await supa('GET', `assemblies?furniture_id=eq.${fid}&select=*,assembly_materials(*)`);
+  assemblies = Array.isArray(asmData) ? asmData.map(a => ({
+    id: a.id, name: a.name,
+    rows: (a.assembly_materials||[]).map(m => ({ id:m.id, name:m.name, unit:m.unit, qty:m.qty, price:m.price }))
+  })) : [{ id: Date.now(), name: 'Assembly 1', rows: [] }];
+  const ed = document.getElementById('furnitureEditor');
+  if(ed) ed.style.display = 'block';
+  document.getElementById('aiBox').style.display = 'none';
+  renderAssemblies();
+  calcEditor();
+  ed?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeEditor() {
+  const ed = document.getElementById('furnitureEditor');
+  if(ed) ed.style.display = 'none';
+  editingFurnitureId = null;
+}
+
+async function deleteFurniture(fid) {
+  if(!confirm('Устгах уу?')) return;
+  await supa('DELETE', `furniture?id=eq.${fid}`);
+  furnitureList = furnitureList.filter(f => f.id !== fid);
+  renderFurnitureList();
+}
+
+function addAssembly() {
+  assemblies.push({ id: Date.now(), name: 'Assembly ' + (assemblies.length+1), rows: [] });
+  renderAssemblies();
+}
+
+function removeAssembly(asmId) {
+  if(assemblies.length <= 1) { alert('Дор хаяж 1 assembly байх ёстой'); return; }
+  assemblies = assemblies.filter(a => a.id !== asmId);
+  renderAssemblies();
+  calcEditor();
+}
+
+function addAsmRow(asmId) {
+  const a = assemblies.find(x => x.id === asmId);
+  if(a) { a.rows.push({ id: Date.now(), name:'', unit:'ш', qty:1, price:0 }); renderAssemblies(); }
+}
+
+function delAsmRow(asmId, rowId) {
+  const a = assemblies.find(x => x.id === asmId);
+  if(a) { a.rows = a.rows.filter(r => r.id !== rowId); renderAssemblies(); calcEditor(); }
+}
+
+function renderAssemblies() {
+  const cont = document.getElementById('assembliesContainer');
+  if(!cont) return;
+  cont.innerHTML = assemblies.map((asm, ai) => `
+    <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">
+      <div style="background:var(--bg);padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+        <input value="${asm.name}" oninput="assemblies[${ai}].name=this.value"
+          style="flex:1;border:none;background:transparent;font-size:13px;font-weight:500;color:var(--text)">
+        <span style="font-size:11px;color:var(--text2)" id="asm-total-${asm.id}"></span>
+        ${assemblies.length>1?`<button class="icon-btn del" onclick="removeAssembly(${asm.id})"><i class="ti ti-trash"></i></button>`:''}
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--bg)">
+          <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">#</th>
+          <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Материал</th>
+          <th style="padding:5px 8px;width:45px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж</th>
+          <th style="padding:5px 8px;width:55px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Тоо</th>
+          <th style="padding:5px 8px;width:90px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж үнэ</th>
+          <th style="padding:5px 8px;width:85px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нийт</th>
+          <th style="padding:5px 8px;width:26px;border-bottom:1px solid var(--border)"></th>
+        </tr></thead>
+        <tbody>${asm.rows.map((r,ri) => `
+          <tr style="border-bottom:0.5px solid var(--border)">
+            <td style="padding:4px 8px;color:var(--text2)">${ri+1}</td>
+            <td style="padding:4px 8px;position:relative">
+              <input value="${r.name}" placeholder="Хайх эсвэл бичих..."
+                oninput="assemblies[${ai}].rows[${ri}].name=this.value;showAsmDrop(${asm.id},${r.id},this.value,this)"
+                onfocus="showAsmDrop(${asm.id},${r.id},this.value,this)"
+                onblur="hideAsmDrop(${asm.id},${r.id})"
+                style="width:100%;border:none;background:transparent;font-size:12px;color:var(--text);min-width:120px">
+              <div id="adrop-${asm.id}-${r.id}" style="display:none;position:absolute;top:100%;left:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:160px;overflow-y:auto;z-index:999"></div>
+            </td>
+            <td style="padding:4px 6px"><input value="${r.unit}" onchange="assemblies[${ai}].rows[${ri}].unit=this.value" style="width:38px;border:none;background:transparent;font-size:12px;text-align:center;color:var(--text)"></td>
+            <td style="padding:4px 6px"><input type="number" value="${r.qty}" oninput="assemblies[${ai}].rows[${ri}].qty=parseFloat(this.value)||0;calcEditor()" style="width:48px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 6px"><input type="number" value="${r.price}" oninput="assemblies[${ai}].rows[${ri}].price=parseFloat(this.value)||0;calcEditor()" style="width:80px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 8px;text-align:right;font-weight:500">${fmt2(r.qty*r.price)}</td>
+            <td><button class="del" onclick="delAsmRow(${asm.id},${r.id})"><i class="ti ti-x"></i></button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="padding:6px 10px">
+        <button onclick="addAsmRow(${asm.id})"
+          style="background:none;border:1px dashed var(--border);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;color:var(--text2);width:100%;display:flex;align-items:center;justify-content:center;gap:4px">
+          <i class="ti ti-plus"></i> Материал нэмэх</button>
+      </div>
+    </div>`).join('');
+  calcEditor();
+}
+
+function showAsmDrop(asmId, rowId, val, input) {
+  const drop = document.getElementById(`adrop-${asmId}-${rowId}`);
+  if(!drop) return;
+  const filtered = val ? matDB.filter(m => m.name.toLowerCase().includes(val.toLowerCase())) : matDB.slice(0,10);
+  if(!filtered.length) { drop.style.display='none'; return; }
+  drop.innerHTML = filtered.map(m => `
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;border-bottom:0.5px solid var(--border)"
+      onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''"
+      onmousedown="selectAsmMat(${asmId},${rowId},'${m.name.replace(/'/g,"\'")}',${m.price},'${m.unit}')">
+      ${m.img?`<img src="${m.img}" style="width:22px;height:22px;border-radius:3px;object-fit:cover" onerror="this.style.display='none'">`:'<div style="width:22px;height:22px;background:var(--bg);border-radius:3px;flex-shrink:0"></div>'}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</div>
+        <div style="font-size:10px;color:var(--text2)">${m.cat||''}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">${fmt2(m.price)}₮</div>
+    </div>`).join('');
+  drop.style.display = 'block';
+}
+
+function hideAsmDrop(asmId, rowId) {
+  setTimeout(() => { const d=document.getElementById(`adrop-${asmId}-${rowId}`); if(d) d.style.display='none'; }, 200);
+}
+
+function selectAsmMat(asmId, rowId, name, price, unit) {
+  const a = assemblies.find(x => x.id===asmId);
+  if(!a) return;
+  const r = a.rows.find(x => x.id===rowId);
+  if(r) { r.name=name; r.price=price; r.unit=unit; }
+  const d = document.getElementById(`adrop-${asmId}-${rowId}`);
+  if(d) d.style.display='none';
+  renderAssemblies();
+  calcEditor();
+}
+
+function calcEditor() {
+  const matTotal = assemblies.reduce((s,a) => s+a.rows.reduce((ss,r) => ss+r.qty*r.price, 0), 0);
+  const unz = matTotal*(g2('eUnz')/100);
+  const bjm = (matTotal+unz)*(g2('eBjm')/100);
+  const m1 = matTotal+unz+bjm;
+  const extra = g2('eExtra');
+  const ajil = (m1+extra)*(g2('eAjil')/100);
+  const uiild = m1+extra+ajil;
+  const ashig = uiild*(g2('eAshig')/100);
+  const nem = g2('eNem');
+  const vat = (uiild+ashig+nem)*1.1;
+  const qty = Math.max(1, parseInt(document.getElementById('fQty')?.value)||1);
+  set2('ed-mat', fmt2(matTotal)+' ₮');
+  set2('ed-vat', fmt2(vat)+' ₮');
+  set2('ed-qty', qty+' ш');
+  set2('ed-total', fmt2(vat*qty)+' ₮');
+  assemblies.forEach(a => {
+    const t = a.rows.reduce((s,r) => s+r.qty*r.price, 0);
+    const el = document.getElementById('asm-total-'+a.id);
+    if(el) el.textContent = fmt2(t)+' ₮';
+  });
+  return { matTotal, vat, qty };
+}
+
+async function saveFurniture() {
+  const name = document.getElementById('fName')?.value.trim();
+  if(!name) { alert('Тавилгын нэр оруулна уу'); return; }
+  if(!currentProjectId) { alert('Эхлээд төсөл сонгоно уу'); return; }
+  const vals = calcEditor();
+  const fData = {
+    project_id: currentProjectId, name,
+    size: document.getElementById('fSize')?.value.trim()||'',
+    notes: document.getElementById('fNotes')?.value.trim()||'',
+    qty: parseInt(document.getElementById('fQty')?.value)||1,
+    rate_unz: g2('eUnz'), rate_bjm: g2('eBjm'), extra_cost: g2('eExtra'),
+    rate_ajil: g2('eAjil'), rate_ashig: g2('eAshig'), nem_cost: g2('eNem'),
+    vat_price: vals.vat
+  };
+  let fid = editingFurnitureId;
+  if(fid) {
+    await supa('PATCH', `furniture?id=eq.${fid}`, fData);
+    await supa('DELETE', `assemblies?furniture_id=eq.${fid}`);
+  } else {
+    const res = await supa('POST', 'furniture', fData);
+    fid = Array.isArray(res) ? res[0]?.id : res?.id;
+  }
+  if(!fid) { alert('Хадгалахад алдаа гарлаа'); return; }
+  for(const asm of assemblies) {
+    const aRes = await supa('POST', 'assemblies', { furniture_id: fid, name: asm.name });
+    const aid = Array.isArray(aRes) ? aRes[0]?.id : aRes?.id;
+    if(!aid) continue;
+    for(const r of asm.rows) {
+      if(!r.name && !r.price) continue;
+      await supa('POST', 'assembly_materials', { assembly_id: aid, name: r.name, unit: r.unit, qty: r.qty, price: r.price });
+    }
+  }
+  closeEditor();
+  await loadFurniture();
+}
+
+async function genAiProposal() {
+  const vals = calcEditor();
+  const name = document.getElementById('fName')?.value||'Тавилга';
+  const proj = projects.find(p => p.id===currentProjectId);
+  const aiBox = document.getElementById('aiBox');
+  const aiResp = document.getElementById('aiResponse');
+  if(!aiBox||!aiResp) return;
+  aiBox.style.display = 'block';
+  aiResp.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span> AI бичиж байна...';
+  const matList = assemblies.flatMap(a => a.rows.map(r => `${r.name}: ${r.qty}${r.unit} × ${fmt2(r.price)}₮`)).join('\n');
+  const prompt = `Тавилга үйлдвэрлэлийн компанийн менежер юм. Захиалагчид илгээх үнийн санал монгол хэлээр бичнэ үү.\nТөсөл: ${proj?.name||''}\nЗахиалагч: ${proj?.client||''}\nТавилга: ${name}\nХэмжээ: ${document.getElementById('fSize')?.value||'—'}\nТоо: ${document.getElementById('fQty')?.value}ш\nМатериал:\n${matList}\nНИЙТ VAT: ${fmt2(vals.vat)}₮`;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await res.json();
+    aiResp.textContent = data.content?.map(c=>c.text||'').join('')||'Алдаа гарлаа.';
+  } catch(e) { aiResp.textContent = 'Алдаа: '+e.message; }
+}
+
 </script>
 </body>
 </html>
