@@ -1135,7 +1135,7 @@ async function editFurniture(fid) {
   const asmData = await supa('GET', `assemblies?furniture_id=eq.${fid}&select=*,assembly_materials(*)`);
   assemblies = Array.isArray(asmData) ? asmData.map(a => ({
     id: a.id, name: a.name,
-    rows: (a.assembly_materials||[]).map(m => ({ id:m.id, name:m.name, unit:m.unit, qty:m.qty, price:m.price }))
+    rows: (a.assembly_materials||[]).map(m => ({ id:m.id, name:m.name, unit:m.unit, qty:m.qty, price:m.price, pLen:m.piece_len||0, pWid:m.piece_wid||0, pieceCount:m.piece_count||1 }))
   })) : [{ id: Date.now(), name: 'Assembly 1', rows: [] }];
   const ed = document.getElementById('furnitureEditor');
   if(ed) ed.style.display = 'block';
@@ -1194,27 +1194,38 @@ function renderAssemblies() {
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:var(--bg)">
           <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">#</th>
-          <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Материал</th>
+          <th style="padding:5px 8px;text-align:left;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Материал <span style="font-size:9px;color:var(--text2);font-weight:400">(хэсгийн тоо)</span></th>
+          <th style="padding:5px 8px;width:65px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Урт мм</th>
+          <th style="padding:5px 8px;width:65px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Өргөн мм</th>
           <th style="padding:5px 8px;width:45px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж</th>
-          <th style="padding:5px 8px;width:55px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Тоо</th>
-          <th style="padding:5px 8px;width:90px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж үнэ</th>
-          <th style="padding:5px 8px;width:85px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нийт</th>
+          <th style="padding:5px 8px;width:50px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Тоо</th>
+          <th style="padding:5px 8px;width:85px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж үнэ</th>
+          <th style="padding:5px 8px;width:80px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нийт</th>
           <th style="padding:5px 8px;width:26px;border-bottom:1px solid var(--border)"></th>
         </tr></thead>
         <tbody>${asm.rows.map((r,ri) => `
           <tr style="border-bottom:0.5px solid var(--border)">
             <td style="padding:4px 8px;color:var(--text2)">${ri+1}</td>
             <td style="padding:4px 8px;position:relative">
-              <input value="${r.name}" placeholder="Хайх эсвэл бичих..."
-                oninput="assemblies[${ai}].rows[${ri}].name=this.value;showAsmDrop(${asm.id},${r.id},this.value,this)"
-                onfocus="showAsmDrop(${asm.id},${r.id},this.value,this)"
-                onblur="hideAsmDrop(${asm.id},${r.id})"
-                style="width:100%;border:none;background:transparent;font-size:12px;color:var(--text);min-width:120px">
-              <div id="adrop-${asm.id}-${r.id}" style="display:none;position:absolute;top:100%;left:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:160px;overflow-y:auto;z-index:999"></div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <div style="flex:1;position:relative">
+                  <input value="${r.name}" placeholder="Хайх эсвэл бичих..."
+                    oninput="assemblies[${ai}].rows[${ri}].name=this.value;showAsmDrop(${asm.id},${r.id},this.value,this)"
+                    onfocus="showAsmDrop(${asm.id},${r.id},this.value,this)"
+                    onblur="hideAsmDrop(${asm.id},${r.id})"
+                    style="width:100%;border:none;background:transparent;font-size:12px;color:var(--text);min-width:100px">
+                  <div id="adrop-${asm.id}-${r.id}" style="display:none;position:absolute;top:100%;left:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:160px;overflow-y:auto;z-index:999"></div>
+                </div>
+                <input type="number" value="${r.pieceCount||1}" title="Хэсгийн тоо ш" 
+                  oninput="assemblies[${ai}].rows[${ri}].pieceCount=parseFloat(this.value)||1;autoCalcQty(${ai},${ri})"
+                  style="width:36px;border:0.5px solid var(--border);background:var(--bg);border-radius:4px;font-size:11px;text-align:center;color:var(--text);padding:2px 3px" placeholder="1ш">
+              </div>
             </td>
-            <td style="padding:4px 6px"><input value="${r.unit}" onchange="assemblies[${ai}].rows[${ri}].unit=this.value" style="width:38px;border:none;background:transparent;font-size:12px;text-align:center;color:var(--text)"></td>
-            <td style="padding:4px 6px"><input type="number" value="${r.qty}" oninput="assemblies[${ai}].rows[${ri}].qty=parseFloat(this.value)||0;calcEditor()" style="width:48px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
-            <td style="padding:4px 6px"><input type="number" value="${r.price}" oninput="assemblies[${ai}].rows[${ri}].price=parseFloat(this.value)||0;calcEditor()" style="width:80px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 4px"><input type="number" value="${r.pLen||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pLen=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 4px"><input type="number" value="${r.pWid||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pWid=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 4px"><input value="${r.unit}" onchange="assemblies[${ai}].rows[${ri}].unit=this.value" style="width:35px;border:none;background:transparent;font-size:12px;text-align:center;color:var(--text)"></td>
+            <td style="padding:4px 4px"><input type="number" value="${r.qty}" oninput="assemblies[${ai}].rows[${ri}].qty=parseFloat(this.value)||0;calcEditor()" style="width:45px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+            <td style="padding:4px 4px"><input type="number" value="${r.price}" oninput="assemblies[${ai}].rows[${ri}].price=parseFloat(this.value)||0;calcEditor()" style="width:78px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
             <td style="padding:4px 8px;text-align:right;font-weight:500">${fmt2(r.qty*r.price)}</td>
             <td><button class="del" onclick="delAsmRow(${asm.id},${r.id})"><i class="ti ti-x"></i></button></td>
           </tr>`).join('')}
@@ -1227,6 +1238,41 @@ function renderAssemblies() {
       </div>
     </div>`).join('');
   calcEditor();
+}
+
+
+function autoCalcQty(ai, ri) {
+  const a = assemblies[ai];
+  if(!a) return;
+  const r = a.rows[ri];
+  if(!r) return;
+  // Хэрэв урт өргөн оруулсан бол материалын баазаас хавтангийн хэмжээг авч тооцоолох
+  if(r.pLen > 0 && r.pWid > 0) {
+    // Тухайн материалын хавтангийн хэмжээг matDB-аас ол
+    const mat = matDB.find(m => m.name === r.name);
+    if(mat && mat.size) {
+      // size нь "2070×2800" эсвэл "1220×2800" хэлбэртэй
+      const parts = mat.size.replace(/[×x*]/g, '×').split('×');
+      if(parts.length >= 2) {
+        const sheetW = parseFloat(parts[0]) || 0;
+        const sheetL = parseFloat(parts[1]) || 0;
+        if(sheetW > 0 && sheetL > 0) {
+          // Нэг хавтангаас хэдэн хэсэг гарах
+          const perSheet = Math.floor(sheetW / r.pWid) * Math.floor(sheetL / r.pLen);
+          if(perSheet > 0) {
+            // Хэдэн хэсэг хэрэгтэй гэдгийг тооцоолох
+            const totalNeeded = r.pieceCount || 1;
+            r.qty = Math.ceil(totalNeeded / perSheet);
+            // Тооны input-г шинэчлэх
+            renderAssemblies();
+            calcEditor();
+            return;
+          }
+        }
+      }
+    }
+    calcEditor();
+  }
 }
 
 function showAsmDrop(asmId, rowId, val, input) {
@@ -1316,7 +1362,7 @@ async function saveFurniture() {
     if(!aid) continue;
     for(const r of asm.rows) {
       if(!r.name && !r.price) continue;
-      await supa('POST', 'assembly_materials', { assembly_id: aid, name: r.name, unit: r.unit, qty: r.qty, price: r.price });
+      await supa('POST', 'assembly_materials', { assembly_id: aid, name: r.name, unit: r.unit, qty: r.qty, price: r.price, piece_len: r.pLen||0, piece_wid: r.pWid||0, piece_count: r.pieceCount||1 });
     }
   }
   closeEditor();
