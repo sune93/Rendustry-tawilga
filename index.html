@@ -929,7 +929,7 @@ function doLogout() {
   document.getElementById('loginErr').textContent = '';
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('load', function() {
   const sess = getSession();
   if(sess) {
     document.getElementById('loginScreen').style.display = 'none';
