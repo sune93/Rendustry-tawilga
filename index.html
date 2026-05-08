@@ -774,9 +774,11 @@ function exportCSV(){
 
 function addQuoteRow(){
   quoteRows.push({id:nextQR++,name:'',unit:'ш',qty:0,price:0});
-  renderQuoteRows();recalc();
+  try{if(document.getElementById("quoteRows"))renderQuoteRows();}catch(e){}
+try{recalc();}catch(e){}
 }
-function delQuoteRow(id){quoteRows=quoteRows.filter(r=>r.id!==id);renderQuoteRows();recalc();}
+function delQuoteRow(id){quoteRows=quoteRows.filter(r=>r.id!==id);try{if(document.getElementById("quoteRows"))renderQuoteRows();}catch(e){}
+try{recalc();}catch(e){}}
 function renderQuoteRows(){
   const opts='<option value="">— сонгох —</option>'+matDB.map(m=>`<option value="${m.id}" data-price="${m.price}" data-unit="${m.unit}">${m.name}</option>`).join('');
   document.getElementById('quoteRows').innerHTML=quoteRows.map((r,i)=>`
@@ -799,7 +801,8 @@ function onMatSel(rid,sel){
   const idx=quoteRows.findIndex(r=>r.id===rid);if(idx<0)return;
   const mat=matDB.find(m=>m.id==sel.value);
   if(mat){quoteRows[idx].name=mat.name;quoteRows[idx].price=mat.price;quoteRows[idx].unit=mat.unit;}
-  renderQuoteRows();recalc();
+  try{if(document.getElementById("quoteRows"))renderQuoteRows();}catch(e){}
+try{recalc();}catch(e){}
 }
 function recalc(){
   calcCount++;
@@ -889,7 +892,8 @@ function renderProposals(){
 function delProp(i){if(!confirm('Устгах уу?'))return;proposals.splice(i,1);saveProps();renderProposals();}
 
 // Init
-renderQuoteRows();recalc();
+try{if(document.getElementById("quoteRows"))renderQuoteRows();}catch(e){}
+try{recalc();}catch(e){}
 
 // ═══ НЭВТРЭЛТИЙН СИСТЕМ ═══
 
@@ -981,10 +985,10 @@ function delUser(i) {
 
 
 // ═══ ТӨСӨЛ / ТАВИЛГА / ASSEMBLY СИСТЕМ ═══
-const fmt2 = n => Math.round(n).toLocaleString('mn-MN');
-const g2 = id => parseFloat(document.getElementById(id)?.value) || 0;
-const set2 = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
-const supa = supaFetch;
+var fmt2 = n => Math.round(n).toLocaleString('mn-MN');
+var g2 = id => parseFloat(document.getElementById(id)?.value) || 0;
+var set2 = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
+var supa = (...args) => supaFetch(...args);
 
 let projects = [];
 let currentProjectId = null;
