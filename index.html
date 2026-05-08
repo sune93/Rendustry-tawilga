@@ -981,22 +981,10 @@ function delUser(i) {
 
 
 // ═══ ТӨСӨЛ / ТАВИЛГА / ASSEMBLY СИСТЕМ ═══
-const SUPA_URL2 = 'https://oincisgkmypivfhswozx.supabase.co';
-const SUPA_KEY2 = 'sb_publishable_ORk1vW6mhriHRDkzJYAVHw_GjFnz7tF';
 const fmt2 = n => Math.round(n).toLocaleString('mn-MN');
 const g2 = id => parseFloat(document.getElementById(id)?.value) || 0;
 const set2 = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
-
-async function supa(method, path, body=null) {
-  const opts = {
-    method,
-    headers: { 'apikey': SUPA_KEY2, 'Authorization': 'Bearer ' + SUPA_KEY2, 'Content-Type': 'application/json', 'Prefer': method==='POST'?'return=representation':'' }
-  };
-  if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(SUPA_URL2 + '/rest/v1/' + path, opts);
-  const txt = await res.text();
-  return txt ? JSON.parse(txt) : null;
-}
+const supa = supaFetch;
 
 let projects = [];
 let currentProjectId = null;
