@@ -432,6 +432,10 @@ select.filter{padding:7px 10px;border:1px solid var(--border);border-radius:6px;
 
 <script>
 
+// Нэвтрэлтийн константууд — хамгийн эхэнд зарлах
+const USERS_KEY = 'tavilga_users';
+const SESSION_KEY = 'tavilga_session';
+
 const SUPA_URL = 'https://oincisgkmypivfhswozx.supabase.co';
 const SUPA_KEY = 'sb_publishable_ORk1vW6mhriHRDkzJYAVHw_GjFnz7tF';
 
@@ -888,8 +892,6 @@ function delProp(i){if(!confirm('Устгах уу?'))return;proposals.splice(i,
 renderQuoteRows();recalc();
 
 // ═══ НЭВТРЭЛТИЙН СИСТЕМ ═══
-const USERS_KEY = 'tavilga_users';
-const SESSION_KEY = 'tavilga_session';
 
 function getUsers() {
   const def = [
