@@ -917,7 +917,7 @@ function doLogin() {
     if(found.role === 'admin') {
       document.getElementById('adminNavItem').style.display = 'flex';
     }
-    renderDash();
+    migrateFromLocalStorage().then(() => loadMaterials());
   } else {
     document.getElementById('loginErr').textContent = 'Нэр эсвэл нууц үг буруу байна';
   }
