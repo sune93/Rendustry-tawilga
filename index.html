@@ -477,7 +477,7 @@ select.filter{padding:7px 10px;border:1px solid var(--border);border-radius:6px;
             <button class="btn" id="viewTop" onclick="setView('top')" style="font-size:11px">Дээр</button>
           </div>
           <canvas id="furnitureCanvas" width="420" height="460"
-            style="background:#f0f4f8;border:1px solid var(--border);border-radius:10px;cursor:grab;display:block;width:100%"
+            style="background:#f0f4f8;border:1px solid var(--border);border-radius:10px;cursor:grab;display:block;max-width:100%"
             onmousedown="startDrag(event)" onmousemove="doDrag(event)" onmouseup="endDrag()" onmouseleave="endDrag()"
             ontouchstart="startDragT(event)" ontouchmove="doDragT(event)" ontouchend="endDrag()">
           </canvas>
@@ -689,7 +689,7 @@ function showPanel(id,el){
   if(id==='proposals')renderProposals();
   if(id==='admin'){renderAdminUsers();}
   if(id==='quote'){loadProjects();}
-  if(id==='constructor'){runConstructor();}
+  if(id==='constructor'){ setTimeout(()=>runConstructor(), 50); }
   if(id==='settings'){const k=getApiKey();if(k)document.getElementById('apiKeyInput').value=k;}
 }
 
@@ -1690,12 +1690,20 @@ function drawFurniture() {
   const canvas = document.getElementById('furnitureCanvas');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0,0,W,H);
+  // Canvas-ийн жинхэнэ attribute хэмжээ ашиглана (CSS биш)
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#f0f4f8';
+  ctx.fillRect(0, 0, W, H);
 
   const vals = getConstructorValues();
   const L=vals.L, D=vals.D, Hh=vals.H, T=vals.T;
   const shelves=vals.shelves, doors=vals.doors, type=vals.type;
+
+  if(!L || !D || !Hh) return;
 
   if(currentView === '3d') {
     draw3D(ctx, W, H, L, D, Hh, T, shelves, doors, type);
