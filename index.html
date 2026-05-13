@@ -458,30 +458,30 @@ select.filter{padding:7px 10px;border:1px solid var(--border);border-radius:6px;
       </div>
 
       <!-- Үр дүн -->
-      <div style="display:grid;grid-template-columns:1fr 380px;gap:14px">
+      <div style="display:grid;grid-template-columns:1fr 440px;gap:14px;align-items:start">
         <!-- Хэсгүүдийн хүснэгт -->
         <div>
           <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Автомат хэсгүүд</div>
           <div class="board" id="constructorParts">
             <div class="empty-state">Хэмжээ оруулаад хэсгүүд автоматаар гарна</div>
           </div>
-          <div style="margin-top:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px" id="constructorSummary" style="display:none"></div>
+          <div style="margin-top:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;display:none" id="constructorSummary"></div>
         </div>
 
         <!-- 3D + Проекц харагдац -->
-        <div>
+        <div style="position:sticky;top:10px">
           <div style="display:flex;gap:6px;margin-bottom:8px">
-            <button class="btn" id="view3d" onclick="setView('3d')" style="font-size:11px;background:var(--accent);color:#fff;border-color:var(--accent)">3D</button>
+            <button class="btn" id="view3d" onclick="setView('3d')" style="font-size:11px;background:var(--accent);color:#fff;border-color:var(--accent)">⬛ 3D</button>
             <button class="btn" id="viewFront" onclick="setView('front')" style="font-size:11px">Урд</button>
             <button class="btn" id="viewSide" onclick="setView('side')" style="font-size:11px">Хажуу</button>
             <button class="btn" id="viewTop" onclick="setView('top')" style="font-size:11px">Дээр</button>
           </div>
-          <canvas id="furnitureCanvas" width="360" height="340"
-            style="background:#f8f9fc;border:1px solid var(--border);border-radius:10px;cursor:grab;display:block"
+          <canvas id="furnitureCanvas" width="420" height="460"
+            style="background:#f0f4f8;border:1px solid var(--border);border-radius:10px;cursor:grab;display:block;width:100%"
             onmousedown="startDrag(event)" onmousemove="doDrag(event)" onmouseup="endDrag()" onmouseleave="endDrag()"
             ontouchstart="startDragT(event)" ontouchmove="doDragT(event)" ontouchend="endDrag()">
           </canvas>
-          <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">3D горимд mouse-аар эргүүлнэ үү</div>
+          <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">🖱️ Mouse-аар эргүүлж харна уу</div>
         </div>
       </div>
     </div>
@@ -1693,94 +1693,160 @@ function drawFurniture() {
 }
 
 function draw3D(ctx, W, H, L, D, Hh, T, shelves, doors, type) {
-  const scale = Math.min(W/(L+D*0.6+60), H/(Hh+D*0.4+60)) * 0.72;
-  const cx = W/2 - (L*scale*0.2);
-  const cy = H/2 + (Hh*scale*0.3);
-
+  // Scale to fit nicely with padding
+  const pad = 50;
+  const maxW = W - pad*2, maxH = H - pad*2;
   const rx = rotX * Math.PI/180;
   const ry = rotY * Math.PI/180;
 
-  function proj(x,y,z) {
+  // Project 3D → 2D with rotation
+  function pt(x, y, z) {
     const x1 = x*Math.cos(ry) + z*Math.sin(ry);
     const z1 = -x*Math.sin(ry) + z*Math.cos(ry);
     const y1 = y*Math.cos(rx) - z1*Math.sin(rx);
-    return [cx + x1*scale, cy - y1*scale];
+    return [x1, y1];
   }
 
-  function face(pts, fill, stroke) {
+  // Find bounding box to auto-scale
+  const corners = [[0,0,0],[L,0,0],[L,Hh,0],[0,Hh,0],[0,0,D],[L,0,D],[L,Hh,D],[0,Hh,D]];
+  const pts2 = corners.map(([x,y,z]) => pt(x,y,z));
+  const xs = pts2.map(p=>p[0]), ys = pts2.map(p=>p[1]);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const scaleX = maxW/(maxX-minX||1), scaleY = maxH/(maxY-minY||1);
+  const scale = Math.min(scaleX, scaleY) * 0.88;
+  const offX = W/2 - (minX+maxX)/2*scale;
+  const offY = H/2 + (minY+maxY)/2*scale - 20;
+
+  function p(x,y,z) {
+    const [px,py] = pt(x,y,z);
+    return [offX + px*scale, offY - py*scale];
+  }
+
+  // Colors
+  const C = {
+    top:   '#E8D5B7', front: '#D4B896', side:  '#C4A07A',
+    dark:  '#A0785A', door:  'rgba(180,140,90,0.75)', doorStroke:'#8B6340',
+    shelf: 'rgba(212,184,150,0.55)', back: '#B8A090',
+    edge:  '#8B6340', dim:   '#546E7A'
+  };
+
+  function face(pts, fill, strokeColor, lw) {
     ctx.beginPath();
     ctx.moveTo(pts[0][0], pts[0][1]);
     for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
     ctx.closePath();
     ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = stroke||'#546E7A';
-    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = strokeColor || C.edge;
+    ctx.lineWidth = lw || 1;
     ctx.stroke();
   }
 
-  const wood = '#D2B48C', woodDark = '#C4A882', woodSide = '#B8976E', woodTop = '#DFC9A8';
+  function line(a, b, color, lw) {
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]);
+    ctx.strokeStyle = color||C.edge; ctx.lineWidth = lw||0.7; ctx.stroke();
+  }
 
   if(type === 'table') {
     // Дээд хавтан
-    face([proj(0,Hh,0),proj(L,Hh,0),proj(L,Hh,D),proj(0,Hh,D)], woodTop);
-    face([proj(0,Hh-T,0),proj(L,Hh-T,0),proj(L,Hh,0),proj(0,Hh,0)], wood);
-    face([proj(L,Hh-T,0),proj(L,Hh,0),proj(L,Hh,D),proj(L,Hh-T,D)], woodSide);
-    // Хөлүүд
-    [[T,0,T],[L-T-60,0,T],[T,0,D-T-60],[L-T-60,0,D-T-60]].forEach(([x,y,z])=>{
-      face([proj(x,y,z),proj(x+60,y,z),proj(x+60,Hh-T,z),proj(x,Hh-T,z)], woodSide);
-      face([proj(x+60,y,z),proj(x+60,Hh-T,z),proj(x+60,Hh-T,z+60),proj(x+60,y,z+60)], woodDark);
-      face([proj(x,Hh-T,z),proj(x+60,Hh-T,z),proj(x+60,Hh-T,z+60),proj(x,Hh-T,z+60)], woodTop);
+    face([p(0,Hh,0),p(L,Hh,0),p(L,Hh,D),p(0,Hh,D)], C.top);
+    face([p(0,Hh-T,0),p(L,Hh-T,0),p(L,Hh,0),p(0,Hh,0)], C.front);
+    face([p(L,Hh-T,0),p(L,Hh,0),p(L,Hh,D),p(L,Hh-T,D)], C.side);
+    // 4 хөл
+    [[T,T],[L-T-60,T],[T,D-T-60],[L-T-60,D-T-60]].forEach(([lx,lz])=>{
+      face([p(lx,0,lz),p(lx+60,0,lz),p(lx+60,Hh-T,lz),p(lx,Hh-T,lz)], C.front);
+      face([p(lx+60,0,lz),p(lx+60,0,lz+60),p(lx+60,Hh-T,lz+60),p(lx+60,Hh-T,lz)], C.side);
+      face([p(lx,Hh-T,lz),p(lx+60,Hh-T,lz),p(lx+60,Hh-T,lz+60),p(lx,Hh-T,lz+60)], C.top);
     });
+    goto_dim(ctx, p, L, D, Hh, C.dim);
     return;
   }
 
-  // Corpus (шүүгээ/тавиур/хувцасны)
-  // Урд тал
-  face([proj(0,0,0),proj(L,0,0),proj(L,Hh,0),proj(0,Hh,0)], wood);
-  // Хажуу тал
-  face([proj(L,0,0),proj(L,0,D),proj(L,Hh,D),proj(L,Hh,0)], woodSide);
+  // ─── CORPUS бүх төрлийн шүүгээнд ───
+  // Арын хавтан (хамгийн эхэнд зурна)
+  face([p(T,T,D),p(L-T,T,D),p(L-T,Hh-T,D),p(T,Hh-T,D)], C.back, '#9E8070', 0.5);
+
+  // Доод хавтан
+  face([p(0,0,0),p(L,0,0),p(L,0,D),p(0,0,D)], C.front);
+  face([p(L,0,0),p(L,0,D),p(L,T,D),p(L,T,0)], C.side);
+  face([p(0,0,D),p(L,0,D),p(L,T,D),p(0,T,D)], C.top);
+
+  // Хажуу хавтангууд
+  // Зүүн
+  face([p(0,0,0),p(T,0,0),p(T,Hh,0),p(0,Hh,0)], C.front, C.edge, 1);
+  face([p(0,0,0),p(0,0,D),p(0,Hh,D),p(0,Hh,0)], C.side, C.edge, 1);
+  face([p(0,Hh,0),p(T,Hh,0),p(T,Hh,D),p(0,Hh,D)], C.top);
+  // Баруун
+  face([p(L-T,0,0),p(L,0,0),p(L,Hh,0),p(L-T,Hh,0)], C.front, C.edge, 1);
+  face([p(L,0,0),p(L,0,D),p(L,Hh,D),p(L,Hh,0)], C.side, C.edge, 1);
+  face([p(L-T,Hh,0),p(L,Hh,0),p(L,Hh,D),p(L-T,Hh,D)], C.top);
+
   // Дээд хавтан
-  face([proj(0,Hh,0),proj(L,Hh,0),proj(L,Hh,D),proj(0,Hh,D)], woodTop);
-  // Хажуу хавтангууд (харагдах шугам)
-  ctx.beginPath(); ctx.moveTo(...proj(0,0,0)); ctx.lineTo(...proj(0,Hh,0)); ctx.strokeStyle='#90A4AE'; ctx.lineWidth=1.5; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(...proj(T,0,0)); ctx.lineTo(...proj(T,Hh,0)); ctx.strokeStyle='#90A4AE'; ctx.lineWidth=0.5; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(...proj(L-T,0,0)); ctx.lineTo(...proj(L-T,Hh,0)); ctx.strokeStyle='#90A4AE'; ctx.lineWidth=0.5; ctx.stroke();
-  // Доод шугам
-  ctx.beginPath(); ctx.moveTo(...proj(0,T,0)); ctx.lineTo(...proj(L,T,0)); ctx.strokeStyle='#90A4AE'; ctx.lineWidth=0.5; ctx.stroke();
-  // Дээд шугам
-  ctx.beginPath(); ctx.moveTo(...proj(0,Hh-T,0)); ctx.lineTo(...proj(L,Hh-T,0)); ctx.strokeStyle='#90A4AE'; ctx.lineWidth=0.5; ctx.stroke();
+  face([p(0,Hh,0),p(L,Hh,0),p(L,Hh,D),p(0,Hh,D)], C.top, C.edge, 1.2);
+  face([p(0,Hh-T,0),p(L,Hh-T,0),p(L,Hh,0),p(0,Hh,0)], C.front);
 
   // Тавиурууд
   for(let i=1;i<=shelves;i++) {
     const sy = T + (Hh-T*2)/(shelves+1)*i;
-    ctx.beginPath(); ctx.moveTo(...proj(T,sy,0)); ctx.lineTo(...proj(L-T,sy,0)); ctx.strokeStyle='#8D6E63'; ctx.lineWidth=1; ctx.stroke();
-    face([proj(T,sy,0),proj(L-T,sy,0),proj(L-T,sy,D-5),proj(T,sy,D-5)], 'rgba(210,180,140,0.5)');
+    face([p(T,sy,0),p(L-T,sy,0),p(L-T,sy,D-5),p(T,sy,D-5)], C.shelf, '#A08060', 0.8);
+    line(p(T,sy,0), p(L-T,sy,0), '#A08060', 1);
+    // Хажуу талын шугам
+    line(p(L-T,sy,0), p(L-T,sy,D-5), '#A08060', 0.6);
+  }
+
+  // Хувцасны шүүгээний дунд босоо хамар
+  if(type === 'wardrobe') {
+    const mx = L/2;
+    face([p(mx-T/2,T,0),p(mx+T/2,T,0),p(mx+T/2,Hh-T,0),p(mx-T/2,Hh-T,0)], C.front, '#9E7850', 1);
+    face([p(mx+T/2,T,0),p(mx+T/2,T,D),p(mx+T/2,Hh-T,D),p(mx+T/2,Hh-T,0)], C.side, '#9E7850', 0.6);
   }
 
   // Хаалгууд
-  if(doors>0 && (type==='cabinet'||type==='wardrobe'||type==='drawer')) {
-    const dw = (L-(type==='wardrobe'?T:0))/doors;
-    for(let i=0;i<doors;i++) {
-      const dx = i*dw + (type==='wardrobe'&&i>0?T:0);
-      face([proj(dx+2,T+2,0),proj(dx+dw-2,T+2,0),proj(dx+dw-2,Hh-T-2,0),proj(dx+2,Hh-T-2,0)], 'rgba(180,140,100,0.6)');
-      ctx.strokeStyle='#795548'; ctx.lineWidth=1.5; ctx.stroke();
+  if(doors>0) {
+    const dCnt = doors;
+    const innerW = type==='wardrobe' ? (L-T)/dCnt : L/dCnt;
+    const startX = 0;
+    for(let i=0;i<dCnt;i++) {
+      const dx = startX + i*innerW;
+      const dw = innerW - 4;
+      const dh = Hh - T*2 - 4;
+      // Хаалгын нүүр
+      face([p(dx+2,T+2,0),p(dx+dw,T+2,0),p(dx+dw,T+2+dh,0),p(dx+2,T+2+dh,0)], C.door, C.doorStroke, 1.5);
+      // Хаалгын зузаан (хажуу тал)
+      face([p(dx+dw,T+2,0),p(dx+dw,T+2,T*0.6),p(dx+dw,T+2+dh,T*0.6),p(dx+dw,T+2+dh,0)], 'rgba(150,110,70,0.5)', C.doorStroke, 0.8);
       // Бариул
-      const bx = dx+dw/2, by = Hh/2;
-      const bp = proj(bx,by,0);
-      ctx.beginPath(); ctx.arc(bp[0],bp[1],4,0,Math.PI*2); ctx.fillStyle='#9E9E9E'; ctx.fill(); ctx.strokeStyle='#616161'; ctx.lineWidth=1; ctx.stroke();
+      const bx = (i<dCnt/2) ? dx+dw-20 : dx+16;
+      const by = T + dh/2;
+      const bp = p(bx, by, 0);
+      ctx.beginPath(); ctx.arc(bp[0],bp[1],5,0,Math.PI*2);
+      ctx.fillStyle='#9E9E9E'; ctx.fill(); ctx.strokeStyle='#616161'; ctx.lineWidth=1.2; ctx.stroke();
     }
   }
 
-  // Хувцасны шүүгээнд дунд таслагч
-  if(type==='wardrobe') {
-    ctx.beginPath(); ctx.moveTo(...proj(L/2,T,0)); ctx.lineTo(...proj(L/2,Hh-T,0)); ctx.strokeStyle='#8D6E63'; ctx.lineWidth=1; ctx.stroke();
+  // Шургуулгатай шүүгээ
+  if(type === 'drawer') {
+    const dCnt = shelves||3;
+    const dh = (Hh-T*2)/dCnt;
+    for(let i=0;i<dCnt;i++) {
+      const dy = T + i*dh;
+      face([p(T+2,dy+2,0),p(L-T-2,dy+2,0),p(L-T-2,dy+dh-4,0),p(T+2,dy+dh-4,0)], C.door, C.doorStroke, 1.2);
+      // Бариул
+      const bp = p(L/2, dy+dh/2, 0);
+      ctx.beginPath(); ctx.moveTo(bp[0]-15,bp[1]); ctx.lineTo(bp[0]+15,bp[1]);
+      ctx.strokeStyle='#9E9E9E'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke(); ctx.lineCap='butt';
+    }
   }
 
-  // Dimension label
-  ctx.fillStyle='#546E7A'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-  const tl = proj(L/2, -20, 0);
-  ctx.fillText(`${L}×${D}×${Hh} мм`, tl[0], tl[1]+10);
+  // Хэмжээний тэмдэглэл
+  goto_dim(ctx, p, L, D, Hh, C.dim);
+}
+
+function goto_dim(ctx, p, L, D, Hh, color) {
+  ctx.fillStyle = color;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  const tp = p(L/2, -15, 0);
+  ctx.fillText(`${Math.round(L)} × ${Math.round(D)} × ${Math.round(Hh)} мм`, tp[0], tp[1]+10);
 }
 
 function drawOrtho(ctx, W, H, w, h, T, shelves, doors, view, type) {
@@ -1827,9 +1893,12 @@ function drawOrtho(ctx, W, H, w, h, T, shelves, doors, view, type) {
 
   // Хэмжээний тэмдэглэгээ
   ctx.fillStyle='#37474F'; ctx.font='11px sans-serif'; ctx.textAlign='center';
-  ctx.fillText(Math.round(w)+'мм', ox+w*scale/2, oy-8);
-  ctx.save(); ctx.translate(ox-12, oy+h*scale/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(Math.round(w)+'мм', ox+w*scale/2, oy-10);
+  ctx.save(); ctx.translate(ox-16, oy+h*scale/2); ctx.rotate(-Math.PI/2);
   ctx.fillText(Math.round(h)+'мм', 0, 0); ctx.restore();
+  // View label
+  ctx.fillStyle='#7c4dff'; ctx.font='bold 12px sans-serif'; ctx.textAlign='left';
+  ctx.fillText(view==='front'?'УРДААС':view==='side'?'ХАЖУУГААС':'ДЭЭРЭЭС', ox+4, oy+16);
 }
 
 function addPartsToAssembly() {
