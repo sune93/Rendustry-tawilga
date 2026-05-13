@@ -1626,23 +1626,40 @@ function runConstructor() {
   const vals = getConstructorValues();
   constructedParts = calcParts(vals);
 
-  // Хэсгүүдийн хүснэгт
+  // Хэсгүүдийн хүснэгт — материал сонгох dropdown нэмсэн
   const board = document.getElementById('constructorParts');
   if(!board) return;
   const fmt3 = n => Math.round(n).toLocaleString();
+
+  // Хавтангийн материалууд dropdown-д
+  const plateMats = matDB.filter(m => m.cat === 'Хавтан');
+  const matOpts = '<option value="">— сонгоогүй —</option>' + plateMats.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
   board.innerHTML = `
-    <div class="board-head" style="display:grid;grid-template-columns:28px 1fr 70px 70px 40px 90px 90px">
-      <div class="bh">#</div><div class="bh">Хэсэг</div><div class="bh">Урт мм</div><div class="bh">Өргөн мм</div><div class="bh">Тоо</div><div class="bh">Тавиур</div><div class="bh">Ирмэг</div>
+    <div class="board-head" style="display:grid;grid-template-columns:24px 1fr 65px 65px 36px 70px 80px 80px">
+      <div class="bh">#</div>
+      <div class="bh">Хэсэг</div>
+      <div class="bh">Урт мм</div>
+      <div class="bh">Өргөн мм</div>
+      <div class="bh">Тоо</div>
+      <div class="bh">Тавиур</div>
+      <div class="bh">Ирмэг</div>
+      <div class="bh" style="color:#7c4dff">Материал</div>
     </div>
-    ${constructedParts.map((p,i)=>`
-    <div class="board-row" style="display:grid;grid-template-columns:28px 1fr 70px 70px 40px 90px 90px;align-items:center">
-      <div class="bc" style="color:var(--text2)">${i+1}</div>
-      <div class="bc" style="font-weight:500">${p.name}</div>
-      <div class="bc" style="text-align:right">${fmt3(p.len)}</div>
-      <div class="bc" style="text-align:right">${fmt3(p.wid)}</div>
-      <div class="bc" style="text-align:center">${p.qty}</div>
-      <div class="bc"><span style="font-size:10px;padding:2px 6px;border-radius:8px;background:${p.shelfType==='sul'?'#e3f2fd':'#fff3e0'};color:${p.shelfType==='sul'?'#1565c0':'#e65100'}">${p.shelfType==='sul'?'Сул':'Үхмэл'}</span></div>
+    ${constructedParts.map((p,i) => `
+    <div class="board-row" style="display:grid;grid-template-columns:24px 1fr 65px 65px 36px 70px 80px 80px;align-items:center">
+      <div class="bc" style="color:var(--text2);font-size:11px">${i+1}</div>
+      <div class="bc" style="font-weight:500;font-size:12px">${p.name}</div>
+      <div class="bc" style="text-align:right;font-size:12px">${fmt3(p.len)}</div>
+      <div class="bc" style="text-align:right;font-size:12px">${fmt3(p.wid)}</div>
+      <div class="bc" style="text-align:center;font-size:12px">${p.qty}</div>
+      <div class="bc"><span style="font-size:10px;padding:2px 5px;border-radius:8px;background:${p.shelfType==='sul'?'#e3f2fd':'#fff3e0'};color:${p.shelfType==='sul'?'#1565c0':'#e65100'}">${p.shelfType==='sul'?'Сул':'Үхмэл'}</span></div>
       <div class="bc" style="font-size:10px;color:#1565c0">${[p.edgeFront?'У':'',p.edgeBack?'А':'',p.edgeLeft?'З':'',p.edgeRight?'Б':''].filter(Boolean).join(' ')||'—'}</div>
+      <div class="bc">
+        <select id="cmat-${i}" style="width:100%;font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
+          ${matOpts}
+        </select>
+      </div>
     </div>`).join('')}`;
 
   // Нийт ирмэг
@@ -1903,38 +1920,44 @@ function drawOrtho(ctx, W, H, w, h, T, shelves, doors, view, type) {
 
 function addPartsToAssembly() {
   if(!constructedParts.length) return;
-  showPanel('quote', document.querySelectorAll('.nav-item')[2]);
+
+  // Сонгосон материалуудыг уншина
+  const selectedMats = constructedParts.map((p, i) => {
+    const sel = document.getElementById(`cmat-${i}`);
+    const matId = sel ? parseInt(sel.value) : null;
+    const mat = matId ? matDB.find(m => m.id === matId) : null;
+    return mat;
+  });
+
+  showPanel('quote', document.querySelectorAll('.nav-item')[3]);
   setTimeout(() => {
     if(!currentProjectId) { alert('Эхлээд төсөл сонгоно уу'); return; }
     newFurniture();
     setTimeout(() => {
       assemblies = [];
-      // Хэсгүүдийг assembly болгож нэмэх
-      const grouped = {};
-      constructedParts.forEach(p => {
-        const key = p.name.includes('хавтан')||p.name.includes('таслагч')||p.name.includes('тавиур')||p.name.includes('хаалга')||p.name.includes('Хөл') ? 'Хавтан' : 'Бусад';
-        if(!grouped[key]) grouped[key] = [];
-        grouped[key].push(p);
-      });
-      assemblies = Object.entries(grouped).map(([name, rows], ai) => ({
-        id: Date.now()+ai,
-        name,
-        rows: rows.map((p, ri) => ({
-          id: Date.now()+ai*100+ri,
-          name: '',
-          unit: 'ш',
-          qty: p.qty,
-          price: 0,
-          pLen: p.len,
-          pWid: p.wid,
-          pieceCount: p.qty,
-          shelfType: p.shelfType,
-          edgeFront: p.edgeFront,
-          edgeBack: p.edgeBack,
-          edgeLeft: p.edgeLeft,
-          edgeRight: p.edgeRight
-        }))
-      }));
+      // Бүх хэсгийг нэг assembly-д нэмнэ, материалын нэр + үнэтэй
+      assemblies = [{
+        id: Date.now(),
+        name: 'Байгуулалт',
+        rows: constructedParts.map((p, i) => {
+          const mat = selectedMats[i];
+          return {
+            id: Date.now() + i + 1,
+            name: mat ? mat.name : '',
+            unit: 'ш',
+            qty: p.qty,
+            price: mat ? mat.price : 0,
+            pLen: p.len,
+            pWid: p.wid,
+            pieceCount: p.qty,
+            shelfType: p.shelfType,
+            edgeFront: p.edgeFront,
+            edgeBack: p.edgeBack,
+            edgeLeft: p.edgeLeft,
+            edgeRight: p.edgeRight
+          };
+        })
+      }];
       const vals = getConstructorValues();
       document.getElementById('fSize').value = `${vals.L}×${vals.D}×${vals.H}`;
       renderAssemblies();
