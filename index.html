@@ -382,7 +382,7 @@ select.filter{padding:7px 10px;border:1px solid var(--border);border-radius:6px;
           </div>
 
           <!-- Дүн харуулах -->
-          <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <div>
               <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Материалын нийт</div>
               <div style="font-size:15px;font-weight:600" id="ed-mat">0 ₮</div>
@@ -390,6 +390,10 @@ select.filter{padding:7px 10px;border:1px solid var(--border);border-radius:6px;
             <div>
               <div style="font-size:11px;color:var(--text2);margin-bottom:4px">1ш VAT үнэ</div>
               <div style="font-size:15px;font-weight:600;color:#7c4dff" id="ed-vat">0 ₮</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:#1565c0;margin-bottom:4px">⚡ Ирмэгийн нийт</div>
+              <div style="font-size:15px;font-weight:600;color:#1565c0" id="ed-edge">0.00 м</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Тоо ширхэг</div>
@@ -1146,7 +1150,7 @@ async function editFurniture(fid) {
   const asmData = await supa('GET', `assemblies?furniture_id=eq.${fid}&select=*,assembly_materials(*)`);
   assemblies = Array.isArray(asmData) ? asmData.map(a => ({
     id: a.id, name: a.name,
-    rows: (a.assembly_materials||[]).map(m => ({ id:m.id, name:m.name, unit:m.unit, qty:m.qty, price:m.price, pLen:m.piece_len||0, pWid:m.piece_wid||0, pieceCount:m.piece_count||1 }))
+    rows: (a.assembly_materials||[]).map(m => ({ id:m.id, name:m.name, unit:m.unit, qty:m.qty, price:m.price, pLen:m.piece_len||0, pWid:m.piece_wid||0, pieceCount:m.piece_count||1, shelfType:m.shelf_type||'ukhmel', edgeFront:m.edge_front||false, edgeBack:m.edge_back||false, edgeLeft:m.edge_left||false, edgeRight:m.edge_right||false }))
   })) : [{ id: Date.now(), name: 'Assembly 1', rows: [] }];
   const ed = document.getElementById('furnitureEditor');
   if(ed) ed.style.display = 'block';
@@ -1183,12 +1187,61 @@ function removeAssembly(asmId) {
 
 function addAsmRow(asmId) {
   const a = assemblies.find(x => x.id === asmId);
-  if(a) { a.rows.push({ id: Date.now(), name:'', unit:'ш', qty:1, price:0 }); renderAssemblies(); }
+  if(a) { a.rows.push({ id: Date.now(), name:'', unit:'ш', qty:1, price:0, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false }); renderAssemblies(); }
 }
 
 function delAsmRow(asmId, rowId) {
   const a = assemblies.find(x => x.id === asmId);
   if(a) { a.rows = a.rows.filter(r => r.id !== rowId); renderAssemblies(); calcEditor(); }
+}
+
+function asmRowHtml(r, ri, ai, asm) {
+  const ef = r.edgeFront !== undefined ? r.edgeFront : true;
+  const eb = r.edgeBack  !== undefined ? r.edgeBack  : (r.shelfType==='sul');
+  const el = r.edgeLeft  !== undefined ? r.edgeLeft  : (r.shelfType==='sul');
+  const er = r.edgeRight !== undefined ? r.edgeRight : (r.shelfType==='sul');
+  const isSul = r.shelfType === 'sul';
+  return `
+  <tr style="border-bottom:0.5px solid var(--border)">
+    <td style="padding:4px 8px;color:var(--text2)">${ri+1}</td>
+    <td style="padding:4px 8px;position:relative">
+      <div style="display:flex;align-items:center;gap:4px">
+        <div style="flex:1;position:relative">
+          <input value="${r.name}" placeholder="Хайх эсвэл бичих..."
+            oninput="assemblies[${ai}].rows[${ri}].name=this.value;showAsmDrop(${asm.id},${r.id},this.value,this)"
+            onfocus="showAsmDrop(${asm.id},${r.id},this.value,this)"
+            onblur="hideAsmDrop(${asm.id},${r.id})"
+            style="width:100%;border:none;background:transparent;font-size:12px;color:var(--text);min-width:100px">
+          <div id="adrop-${asm.id}-${r.id}" style="display:none;position:absolute;top:100%;left:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:160px;overflow-y:auto;z-index:999"></div>
+        </div>
+        <input type="number" value="${r.pieceCount||1}" title="Хэсгийн тоо ш"
+          oninput="assemblies[${ai}].rows[${ri}].pieceCount=parseFloat(this.value)||1;autoCalcQty(${ai},${ri})"
+          style="width:36px;border:0.5px solid var(--border);background:var(--bg);border-radius:4px;font-size:11px;text-align:center;color:var(--text);padding:2px 3px" placeholder="1ш">
+      </div>
+    </td>
+    <td style="padding:4px 4px"><input type="number" value="${r.pLen||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pLen=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+    <td style="padding:4px 4px"><input type="number" value="${r.pWid||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pWid=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+    <td style="padding:4px 4px"><input value="${r.unit}" onchange="assemblies[${ai}].rows[${ri}].unit=this.value" style="width:35px;border:none;background:transparent;font-size:12px;text-align:center;color:var(--text)"></td>
+    <td style="padding:4px 4px"><input type="number" value="${r.qty}" oninput="assemblies[${ai}].rows[${ri}].qty=parseFloat(this.value)||0;calcEditor()" style="width:45px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+    <td style="padding:4px 4px"><input type="number" value="${r.price}" oninput="assemblies[${ai}].rows[${ri}].price=parseFloat(this.value)||0;calcEditor()" style="width:78px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
+    <td style="padding:4px 8px;text-align:right;font-weight:500">${fmt2(r.qty*r.price)}</td>
+    <td style="padding:2px 4px;white-space:nowrap">
+      <div style="display:flex;align-items:center;gap:2px;margin-bottom:3px">
+        <select title="Тавиурын төрөл" onchange="setShelfType(${ai},${ri},this.value)"
+          style="font-size:9px;padding:1px 3px;border:0.5px solid var(--border);border-radius:3px;background:${isSul?'#e3f2fd':'#fff3e0'};color:${isSul?'#1565c0':'#e65100'};cursor:pointer;width:64px">
+          <option value="ukhmel" ${!isSul?'selected':''}>Үхмэл</option>
+          <option value="sul" ${isSul?'selected':''}>Сул</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:3px;align-items:center">
+        <label title="Урд" style="display:flex;flex-direction:column;align-items:center;font-size:8px;color:#1565c0;cursor:pointer;gap:1px">У<input type="checkbox" ${ef?'checked':''} onchange="assemblies[${ai}].rows[${ri}].edgeFront=this.checked;calcEditor()" style="width:11px;height:11px;cursor:pointer;accent-color:#1565c0"></label>
+        <label title="Ар" style="display:flex;flex-direction:column;align-items:center;font-size:8px;color:#1565c0;cursor:pointer;gap:1px">А<input type="checkbox" ${eb?'checked':''} onchange="assemblies[${ai}].rows[${ri}].edgeBack=this.checked;calcEditor()" style="width:11px;height:11px;cursor:pointer;accent-color:#1565c0"></label>
+        <label title="Зүүн" style="display:flex;flex-direction:column;align-items:center;font-size:8px;color:#1565c0;cursor:pointer;gap:1px">З<input type="checkbox" ${el?'checked':''} onchange="assemblies[${ai}].rows[${ri}].edgeLeft=this.checked;calcEditor()" style="width:11px;height:11px;cursor:pointer;accent-color:#1565c0"></label>
+        <label title="Баруун" style="display:flex;flex-direction:column;align-items:center;font-size:8px;color:#1565c0;cursor:pointer;gap:1px">Б<input type="checkbox" ${er?'checked':''} onchange="assemblies[${ai}].rows[${ri}].edgeRight=this.checked;calcEditor()" style="width:11px;height:11px;cursor:pointer;accent-color:#1565c0"></label>
+      </div>
+    </td>
+    <td><button class="del" onclick="delAsmRow(${asm.id},${r.id})"><i class="ti ti-x"></i></button></td>
+  </tr>`;
 }
 
 function renderAssemblies() {
@@ -1212,34 +1265,10 @@ function renderAssemblies() {
           <th style="padding:5px 8px;width:50px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Тоо</th>
           <th style="padding:5px 8px;width:85px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нэгж үнэ</th>
           <th style="padding:5px 8px;width:80px;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border)">Нийт</th>
+          <th style="padding:5px 8px;width:110px;font-size:10px;color:#1565c0;border-bottom:1px solid var(--border)" title="Ирмэг: Урд/Ар/Зүүн/Баруун">Ирмэг У А З Б</th>
           <th style="padding:5px 8px;width:26px;border-bottom:1px solid var(--border)"></th>
         </tr></thead>
-        <tbody>${asm.rows.map((r,ri) => `
-          <tr style="border-bottom:0.5px solid var(--border)">
-            <td style="padding:4px 8px;color:var(--text2)">${ri+1}</td>
-            <td style="padding:4px 8px;position:relative">
-              <div style="display:flex;align-items:center;gap:4px">
-                <div style="flex:1;position:relative">
-                  <input value="${r.name}" placeholder="Хайх эсвэл бичих..."
-                    oninput="assemblies[${ai}].rows[${ri}].name=this.value;showAsmDrop(${asm.id},${r.id},this.value,this)"
-                    onfocus="showAsmDrop(${asm.id},${r.id},this.value,this)"
-                    onblur="hideAsmDrop(${asm.id},${r.id})"
-                    style="width:100%;border:none;background:transparent;font-size:12px;color:var(--text);min-width:100px">
-                  <div id="adrop-${asm.id}-${r.id}" style="display:none;position:absolute;top:100%;left:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:160px;overflow-y:auto;z-index:999"></div>
-                </div>
-                <input type="number" value="${r.pieceCount||1}" title="Хэсгийн тоо ш" 
-                  oninput="assemblies[${ai}].rows[${ri}].pieceCount=parseFloat(this.value)||1;autoCalcQty(${ai},${ri})"
-                  style="width:36px;border:0.5px solid var(--border);background:var(--bg);border-radius:4px;font-size:11px;text-align:center;color:var(--text);padding:2px 3px" placeholder="1ш">
-              </div>
-            </td>
-            <td style="padding:4px 4px"><input type="number" value="${r.pLen||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pLen=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
-            <td style="padding:4px 4px"><input type="number" value="${r.pWid||''}" placeholder="—" oninput="assemblies[${ai}].rows[${ri}].pWid=parseFloat(this.value)||0;autoCalcQty(${ai},${ri})" style="width:58px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
-            <td style="padding:4px 4px"><input value="${r.unit}" onchange="assemblies[${ai}].rows[${ri}].unit=this.value" style="width:35px;border:none;background:transparent;font-size:12px;text-align:center;color:var(--text)"></td>
-            <td style="padding:4px 4px"><input type="number" value="${r.qty}" oninput="assemblies[${ai}].rows[${ri}].qty=parseFloat(this.value)||0;calcEditor()" style="width:45px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
-            <td style="padding:4px 4px"><input type="number" value="${r.price}" oninput="assemblies[${ai}].rows[${ri}].price=parseFloat(this.value)||0;calcEditor()" style="width:78px;border:none;background:transparent;font-size:12px;text-align:right;color:var(--text)"></td>
-            <td style="padding:4px 8px;text-align:right;font-weight:500">${fmt2(r.qty*r.price)}</td>
-            <td><button class="del" onclick="delAsmRow(${asm.id},${r.id})"><i class="ti ti-x"></i></button></td>
-          </tr>`).join('')}
+        <tbody>${asm.rows.map((r,ri) => asmRowHtml(r,ri,ai,asm)).join('')}
         </tbody>
       </table>
       <div style="padding:6px 10px">
@@ -1252,7 +1281,40 @@ function renderAssemblies() {
 }
 
 
-function autoCalcQty(ai, ri) {
+function setShelfType(ai, ri, type) {
+  const r = assemblies[ai]?.rows[ri];
+  if(!r) return;
+  r.shelfType = type;
+  if(type === 'sul') {
+    r.edgeFront = true; r.edgeBack = true; r.edgeLeft = true; r.edgeRight = true;
+  } else {
+    r.edgeFront = true; r.edgeBack = false; r.edgeLeft = false; r.edgeRight = false;
+  }
+  renderAssemblies();
+  calcEditor();
+}
+
+function calcEdgeTotals() {
+  // Ирмэгийн нийт метр тооцоолох
+  // Хавтан бүрийн хэсэг тус бүрт: check хийсэн талын уртыг нэмнэ
+  // Урд/Ар = pLen (урт тал), Зүүн/Баруун = pWid (өргөн тал)
+  let totalEdgeM = 0;
+  for(const asm of assemblies) {
+    for(const r of asm.rows) {
+      if(!r.pLen && !r.pWid) continue;
+      const pieces = r.pieceCount || 1;
+      const len = r.pLen || 0;
+      const wid = r.pWid || 0;
+      if(r.edgeFront) totalEdgeM += (len / 1000) * pieces;
+      if(r.edgeBack)  totalEdgeM += (len / 1000) * pieces;
+      if(r.edgeLeft)  totalEdgeM += (wid / 1000) * pieces;
+      if(r.edgeRight) totalEdgeM += (wid / 1000) * pieces;
+    }
+  }
+  return totalEdgeM;
+}
+
+
   const a = assemblies[ai];
   if(!a) return;
   const r = a.rows[ri];
@@ -1336,6 +1398,8 @@ function calcEditor() {
   set2('ed-vat', fmt2(vat)+' ₮');
   set2('ed-qty', qty+' ш');
   set2('ed-total', fmt2(vat*qty)+' ₮');
+  const edgeM = calcEdgeTotals();
+  set2('ed-edge', edgeM.toFixed(2)+' м');
   assemblies.forEach(a => {
     const t = a.rows.reduce((s,r) => s+r.qty*r.price, 0);
     const el = document.getElementById('asm-total-'+a.id);
@@ -1373,7 +1437,7 @@ async function saveFurniture() {
     if(!aid) continue;
     for(const r of asm.rows) {
       if(!r.name && !r.price) continue;
-      await supa('POST', 'assembly_materials', { assembly_id: aid, name: r.name, unit: r.unit, qty: r.qty, price: r.price, piece_len: r.pLen||0, piece_wid: r.pWid||0, piece_count: r.pieceCount||1 });
+      await supa('POST', 'assembly_materials', { assembly_id: aid, name: r.name, unit: r.unit, qty: r.qty, price: r.price, piece_len: r.pLen||0, piece_wid: r.pWid||0, piece_count: r.pieceCount||1, shelf_type: r.shelfType||'ukhmel', edge_front: r.edgeFront||false, edge_back: r.edgeBack||false, edge_left: r.edgeLeft||false, edge_right: r.edgeRight||false });
     }
   }
   closeEditor();
