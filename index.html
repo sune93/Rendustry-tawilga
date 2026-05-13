@@ -1615,10 +1615,8 @@ function calcParts({L,D,H,T,shelves,doors,type}) {
   parts.push({name:'Доод хавтан',   len:L,      wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
   parts.push({name:'Хажуу хавтан',  len:H-T*2,  wid:D,   qty:2, shelfType:'ukhmel', ...E4});
   parts.push({name:'Арын хавтан',   len:H-T*2,  wid:L,   qty:1, shelfType:'ukhmel', ...E0});
-  if(shelves>0) {
-    parts.push({name:'Босоо хамар', len:H-T*2,  wid:D,   qty:shelves, shelfType:'ukhmel', ...E_F});
-  }
-  if(doors>0) parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', ...E4});
+  if(shelves>0) parts.push({name:'Үхмэл тавиур', len:L-T*2, wid:D-5, qty:shelves, shelfType:'ukhmel', ...E_F});
+  if(doors>0)   parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', ...E4});
   return parts;
 }
 
@@ -1631,9 +1629,10 @@ function runConstructor() {
   if(!board) return;
   const fmt3 = n => Math.round(n).toLocaleString();
 
-  // Хавтангийн материалууд dropdown-д
+  // Хавтангийн материалууд dropdown-д (хоосон бол бүх материал)
   const plateMats = matDB.filter(m => m.cat === 'Хавтан');
-  const matOpts = '<option value="">— сонгоогүй —</option>' + plateMats.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  const dropMats = plateMats.length ? plateMats : matDB;
+  const matOpts = '<option value="">— сонгоогүй —</option>' + dropMats.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
 
   board.innerHTML = `
     <div class="board-head" style="display:grid;grid-template-columns:24px 1fr 65px 65px 36px 70px 80px 80px">
@@ -1929,7 +1928,7 @@ function addPartsToAssembly() {
     return mat;
   });
 
-  showPanel('quote', document.querySelectorAll('.nav-item')[3]);
+  showPanel('quote', document.querySelector('.nav-item[onclick*="quote"]'));
   setTimeout(() => {
     if(!currentProjectId) { alert('Эхлээд төсөл сонгоно уу'); return; }
     newFurniture();
