@@ -1547,46 +1547,78 @@ function getConstructorValues() {
 
 function calcParts({L,D,H,T,shelves,doors,type}) {
   const parts = [];
+
+  // Ирмэгийн дүрэм:
+  // Хажуу хавтан       → 4 тал
+  // Дээд/Доод хавтан   → урд + ар (2 тал)
+  // Арын хавтан        → ирмэггүй
+  // Хаалга             → 4 тал
+  // Босоо хамар        → урд тал
+  // Үхмэл тавиур       → урд тал
+  // Сул тавиур         → 4 тал
+  // Шургуулга нүүр     → 4 тал
+  // Шургуулга 2 шанаа  → 4 тал
+  // Шургуулга урд/хойд → дээр + доор (2 тал)
+  // Шургуулга шал      → ирмэггүй
+
+  const E = (f,b,l,r) => ({edgeFront:f, edgeBack:b, edgeLeft:l, edgeRight:r});
+  const E4    = E(true,true,true,true);   // 4 тал
+  const E_FB  = E(true,true,false,false); // урд+ар
+  const E_F   = E(true,false,false,false);// урд тал
+  const E_TB  = E(false,false,true,true); // дээр+доор (зүүн/баруун = урт тал)
+  const E0    = E(false,false,false,false);// ирмэггүй
+
   if(type === 'table') {
-    parts.push({name:'Дээд хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
-    parts.push({name:'Хөл (урт)', len:H-T, wid:60, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Хөл (богино)', len:D-120, wid:60, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
+    parts.push({name:'Дээд хавтан',    len:L,     wid:D,   qty:1, shelfType:'ukhmel', ...E4});
+    parts.push({name:'Хөл (урт)',      len:H-T,   wid:60,  qty:2, shelfType:'ukhmel', ...E4});
+    parts.push({name:'Хөл (богино)',   len:D-120, wid:60,  qty:2, shelfType:'ukhmel', ...E4});
     return parts;
   }
+
   if(type === 'shelf') {
-    parts.push({name:'Дээд хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Доод хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Хажуу хавтан', len:H-T*2, wid:D, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    if(shelves>0) parts.push({name:'Сул тавиур', len:L-T*2, wid:D-5, qty:shelves, shelfType:'sul', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
+    parts.push({name:'Дээд хавтан',   len:L,      wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Доод хавтан',   len:L,      wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Хажуу хавтан',  len:H-T*2,  wid:D,   qty:2, shelfType:'ukhmel', ...E4});
+    parts.push({name:'Арын хавтан',   len:H-T*2,  wid:L,   qty:1, shelfType:'ukhmel', ...E0});
+    if(shelves>0) parts.push({name:'Сул тавиур', len:L-T*2, wid:D-5, qty:shelves, shelfType:'sul', ...E4});
     return parts;
   }
+
   if(type === 'wardrobe') {
-    parts.push({name:'Дээд хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Доод хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Хажуу хавтан', len:H-T*2, wid:D, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Дунд таслагч', len:H-T*2, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    if(shelves>0) parts.push({name:'Сул тавиур', len:(L/2)-T*1.5, wid:D-5, qty:shelves, shelfType:'sul', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
-    parts.push({name:'Арын хавтан', len:H-T*2, wid:L, qty:1, shelfType:'ukhmel', edgeFront:false, edgeBack:false, edgeLeft:false, edgeRight:false});
-    if(doors>0) parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
+    parts.push({name:'Дээд хавтан',    len:L,          wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Доод хавтан',    len:L,          wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Хажуу хавтан',   len:H-T*2,      wid:D,   qty:2, shelfType:'ukhmel', ...E4});
+    parts.push({name:'Босоо хамар',    len:H-T*2,      wid:D,   qty:1, shelfType:'ukhmel', ...E_F});
+    parts.push({name:'Арын хавтан',    len:H-T*2,      wid:L,   qty:1, shelfType:'ukhmel', ...E0});
+    if(shelves>0) parts.push({name:'Сул тавиур', len:(L/2)-T*1.5, wid:D-5, qty:shelves, shelfType:'sul', ...E4});
+    if(doors>0) parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', ...E4});
     return parts;
   }
+
   if(type === 'drawer') {
-    parts.push({name:'Дээд хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Доод хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Хажуу хавтан', len:H-T*2, wid:D, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-    const drawerH = Math.floor((H-T*2)/(shelves+1||3));
-    parts.push({name:'Шургуулга урд', len:L-2, wid:drawerH-2, qty:shelves||3, shelfType:'ukhmel', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
-    parts.push({name:'Шургуулга хажуу', len:D-50, wid:drawerH-20, qty:(shelves||3)*2, shelfType:'ukhmel', edgeFront:false, edgeBack:false, edgeLeft:false, edgeRight:false});
-    parts.push({name:'Шургуулга ёроол', len:L-T*2-2, wid:D-50, qty:shelves||3, shelfType:'ukhmel', edgeFront:false, edgeBack:false, edgeLeft:false, edgeRight:false});
+    parts.push({name:'Дээд хавтан',      len:L,        wid:D,        qty:1,           shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Доод хавтан',      len:L,        wid:D,        qty:1,           shelfType:'ukhmel', ...E_FB});
+    parts.push({name:'Хажуу хавтан',     len:H-T*2,    wid:D,        qty:2,           shelfType:'ukhmel', ...E4});
+    parts.push({name:'Арын хавтан',      len:H-T*2,    wid:L,        qty:1,           shelfType:'ukhmel', ...E0});
+    const dCnt = shelves||3;
+    const drawerH = Math.floor((H-T*2) / dCnt);
+    const innerH  = drawerH - T*2 - 4;
+    parts.push({name:'Шургуулга нүүр',   len:L-2,      wid:drawerH-2,qty:dCnt,        shelfType:'ukhmel', ...E4});
+    parts.push({name:'Шургуулга шанаа',  len:D-50,     wid:innerH,   qty:dCnt*2,      shelfType:'ukhmel', ...E4});
+    parts.push({name:'Шургуулга урд/хойд',len:L-T*2-2, wid:innerH,   qty:dCnt*2,      shelfType:'ukhmel', ...E_TB});
+    parts.push({name:'Шургуулга шал',    len:L-T*2-2,  wid:D-50,     qty:dCnt,        shelfType:'ukhmel', ...E0});
     return parts;
   }
-  // Default: cabinet
-  parts.push({name:'Дээд хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-  parts.push({name:'Доод хавтан', len:L, wid:D, qty:1, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-  parts.push({name:'Хажуу хавтан', len:H-T*2, wid:D, qty:2, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-  if(shelves>0) parts.push({name:'Үхмэл тавиур', len:L-T*2, wid:D-5, qty:shelves, shelfType:'ukhmel', edgeFront:true, edgeBack:false, edgeLeft:false, edgeRight:false});
-  parts.push({name:'Арын хавтан', len:H-T*2, wid:L, qty:1, shelfType:'ukhmel', edgeFront:false, edgeBack:false, edgeLeft:false, edgeRight:false});
-  if(doors>0) parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', edgeFront:true, edgeBack:true, edgeLeft:true, edgeRight:true});
+
+  // Default: cabinet (шүүгээ)
+  parts.push({name:'Дээд хавтан',   len:L,      wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+  parts.push({name:'Доод хавтан',   len:L,      wid:D,   qty:1, shelfType:'ukhmel', ...E_FB});
+  parts.push({name:'Хажуу хавтан',  len:H-T*2,  wid:D,   qty:2, shelfType:'ukhmel', ...E4});
+  parts.push({name:'Арын хавтан',   len:H-T*2,  wid:L,   qty:1, shelfType:'ukhmel', ...E0});
+  if(shelves>0) {
+    parts.push({name:'Босоо хамар', len:H-T*2,  wid:D,   qty:shelves, shelfType:'ukhmel', ...E_F});
+  }
+  if(doors>0) parts.push({name:'Хаалга', len:H-T*2-4, wid:(L/doors)-4, qty:doors, shelfType:'ukhmel', ...E4});
   return parts;
 }
 
